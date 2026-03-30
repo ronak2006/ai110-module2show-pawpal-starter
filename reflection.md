@@ -17,6 +17,7 @@
 
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
+=> We dropped Owner and Pet from DailyPlan after realizing Scheduler already owns them (redundancy)  
 
 ---
 
