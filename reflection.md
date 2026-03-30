@@ -113,6 +113,6 @@ I'd also reconsider the greedy scheduling algorithm. It works and it's easy to e
 
 - What is one important thing you learned about designing systems or working with AI on this project?
 
-=> Design on paper first, then code. I went into this thinking the UML was just a formality, but it genuinely saved time. When I had a clear picture of which class owned what, decisions during implementation were fast — I didn't have to stop and wonder "where does this method go?" because the diagram had already answered it. The times I ran into confusion were usually when I hadn't thought through a relationship clearly enough before starting to type.
+=> Designfirst, then code. I went into this thinking the UML was just a formality, but it genuinely saved time. When I had a clear picture of which class owned what, decisions during implementation were fast, I didn't have to stop and wonder "where does this method go?" because the diagram had already answered it. The times I ran into confusion were usually when I hadn't thought through a relationship clearly enough before starting to type.
 
-On the AI side: it's a great first draft machine, but a bad decision maker. It will generate working code that violates your own design principles if you let it. The value isn't in accepting what it gives you — it's in using the output as a starting point and then pushing back when something doesn't fit.
+On the AI side: it's a great first draft machine, but a bad decision maker. It will generate working code that violates your own design principles if you let it. The value isn't in accepting what it gives you, it's in using the output as a starting point and then pushing back when something doesn't fit.

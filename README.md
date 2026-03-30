@@ -101,6 +101,6 @@ The suite contains **48 tests** across `tests/test_pawpal.py`:
 
 ### Confidence level
 
-**★★★★★ (5 / 5)**
+(5/5)
 
-All 48 tests pass. Every public method is covered through both happy paths and boundary conditions — giving high confidence the system behaves correctly under realistic usage.
+All 48 tests pass. 
