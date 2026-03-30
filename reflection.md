@@ -52,10 +52,20 @@ I kept this approach because it makes the schedule easy to explain. Every task h
 - How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
 - What kinds of prompts or questions were most helpful?
 
+=> I used AI at basically every stage, but in different ways depending on what I was doing. Early on it was mostly brainstorming — I'd describe the problem and ask things like "what classes would make sense here" or "how should Owner talk to Scheduler." That was genuinely useful because it pushed me to think about boundaries between classes before writing a single line of code.
+
+For implementation, the most useful prompts were specific ones. Vague prompts like "write a scheduler" gave back bloated code I didn't want. But asking something like "given this Task dataclass with a recurrence field, how should mark_complete() return the next occurrence using dataclasses.replace()" gave me something I could actually use. The more context I gave, the better the output.
+
+I also used it for review — pasting in a method and asking "does this have any edge cases I'm missing" caught a few things, like the fact that is_due() needed to handle the case where next_due is None differently from when it's a future date.
+
 **b. Judgment and verification**
 
 - Describe one moment where you did not accept an AI suggestion as-is.
 - How did you evaluate or verify what the AI suggested?
+
+=> When I asked for help with the Scheduler, the first suggestion came back with Scheduler owning its own task list and an add_task() method — basically making it a second place where tasks lived alongside Pet. I pushed back on that because it created two sources of truth: you'd have to remember to add tasks to both the Pet and the Scheduler, and they could easily get out of sync.
+
+I kept the design where tasks live only on Pet and Scheduler always fetches them fresh through owner.get_pending_tasks(). It meant deleting the add_task() method the AI suggested, but the result was cleaner and less error-prone. I verified it was the right call by tracing through what would happen if someone added a task mid-session — with the AI's version, the Scheduler's internal list would be stale. With my version, it always reflects current state.
 
 ---
 

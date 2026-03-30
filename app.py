@@ -1,41 +1,9 @@
 import streamlit as st
-from pawpal_system import Owner, Pet, Task, Scheduler, Priority, TimeWindow
+from pawpal_system import Owner, Pet, Task, Scheduler, Priority, TimeWindow, sort_tasks_by_time
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
-
 st.title("🐾 PawPal+")
-
-st.markdown(
-    """
-Welcome to the PawPal+ starter app.
-
-This file is intentionally thin. It gives you a working Streamlit app so you can start quickly,
-but **it does not implement the project logic**. Your job is to design the system and build it.
-
-Use this app as your interactive demo once your backend classes/functions exist.
-"""
-)
-
-with st.expander("Scenario", expanded=True):
-    st.markdown(
-        """
-**PawPal+** is a pet care planning assistant. It helps a pet owner plan care tasks
-for their pet(s) based on constraints like time, priority, and preferences.
-
-You will design and implement the scheduling logic and connect it to this Streamlit UI.
-"""
-    )
-
-with st.expander("What you need to build", expanded=True):
-    st.markdown(
-        """
-At minimum, your system should:
-- Represent pet care tasks (what needs to happen, how long it takes, priority)
-- Represent the pet and the owner (basic info and preferences)
-- Build a plan/schedule for a day that chooses and orders tasks based on constraints
-- Explain the plan (why each task was chosen and when it happens)
-"""
-    )
+st.markdown("Plan and track daily care tasks for your pet.")
 
 st.divider()
 
@@ -53,15 +21,17 @@ if "pet" not in st.session_state:
 # Owner & Pet Info
 # ---------------------------------------------------------------------------
 st.subheader("Owner & Pet Info")
-owner_name    = st.text_input("Owner name", value=st.session_state.owner.name)
-available_hours = st.number_input("Hours available today", min_value=0.5, max_value=12.0,
-                                   value=st.session_state.owner.available_hours, step=0.5)
-pet_name = st.text_input("Pet name", value=st.session_state.pet.name)
-species  = st.selectbox("Species", ["dog", "cat", "other"],
-                         index=["dog", "cat", "other"].index(st.session_state.pet.species)
-                         if st.session_state.pet.species in ["dog", "cat", "other"] else 2)
+col_a, col_b = st.columns(2)
+with col_a:
+    owner_name      = st.text_input("Owner name", value=st.session_state.owner.name)
+    available_hours = st.number_input("Hours available today", min_value=0.5, max_value=12.0,
+                                       value=st.session_state.owner.available_hours, step=0.5)
+with col_b:
+    pet_name = st.text_input("Pet name", value=st.session_state.pet.name)
+    species  = st.selectbox("Species", ["dog", "cat", "other"],
+                             index=["dog", "cat", "other"].index(st.session_state.pet.species)
+                             if st.session_state.pet.species in ["dog", "cat", "other"] else 2)
 
-# Sync form values back into the session state objects on every rerun
 st.session_state.owner.name            = owner_name
 st.session_state.owner.available_hours = available_hours
 st.session_state.pet.name              = pet_name
@@ -91,56 +61,125 @@ if st.button("Add task"):
         priority=Priority[priority_str],
         preferred_time=TimeWindow[window_str],
     )
-    # Wire to backend: Pet.add_task() stores the Task object on the pet
     st.session_state.pet.add_task(new_task)
     st.success(f"Added: {new_task.title}")
 
-# Display current task list sourced from the pet object
-current_tasks = st.session_state.pet.tasks
-if current_tasks:
-    st.write(f"Tasks for {st.session_state.pet.name}:")
+# ---------------------------------------------------------------------------
+# Task List — sorted by time window using sort_tasks_by_time()
+# ---------------------------------------------------------------------------
+st.divider()
+st.subheader(f"Tasks for {st.session_state.pet.name}")
+
+all_tasks = st.session_state.pet.tasks
+if all_tasks:
+    sorted_tasks = sort_tasks_by_time(all_tasks)   # algorithmic sort
+
+    st.caption("Sorted by preferred time window, then priority.")
     st.table([
         {
-            "Title": t.title,
+            "Title":         t.title,
+            "Window":        t.preferred_time.value.capitalize(),
+            "Priority":      t.priority.name,
             "Duration (min)": t.duration_minutes,
-            "Priority": t.priority.name,
-            "Window": t.preferred_time.value,
-            "Done": t.completed,
+            "Status":        "Done" if t.completed else "Pending",
         }
-        for t in current_tasks
+        for t in sorted_tasks
     ])
+
+    # Mark a task complete
+    pending_titles = [t.title for t in all_tasks if not t.completed]
+    if pending_titles:
+        st.markdown("**Mark a task complete:**")
+        col_m1, col_m2 = st.columns([3, 1])
+        with col_m1:
+            task_to_complete = st.selectbox("Select task", pending_titles, label_visibility="collapsed")
+        with col_m2:
+            if st.button("Mark done"):
+                st.session_state.pet.complete_task(task_to_complete)
+                st.success(f"Marked '{task_to_complete}' as done.")
+                st.rerun()
 else:
     st.info("No tasks yet. Add one above.")
 
 # ---------------------------------------------------------------------------
-# Generate Schedule
+# Filter tasks using Owner.filter_tasks()
 # ---------------------------------------------------------------------------
 st.divider()
-st.subheader("Build Schedule")
+st.subheader("Filter Tasks")
+
+filter_status = st.radio("Show", ["all", "pending", "done"], horizontal=True)
+
+filter_map = {"all": None, "pending": "pending", "done": "done"}
+filtered = st.session_state.owner.filter_tasks(status=filter_map[filter_status])
+
+if filtered:
+    st.table([
+        {
+            "Title":    t.title,
+            "Priority": t.priority.name,
+            "Window":   t.preferred_time.value.capitalize(),
+            "Status":   "Done" if t.completed else "Pending",
+        }
+        for t in filtered
+    ])
+else:
+    st.info(f"No {filter_status} tasks found.")
+
+# ---------------------------------------------------------------------------
+# Generate Schedule — with conflict warnings
+# ---------------------------------------------------------------------------
+st.divider()
+st.subheader("Build Today's Schedule")
+
+budget_pct = (
+    sum(t.duration_minutes for t in st.session_state.pet.pending_tasks())
+    / st.session_state.owner.available_minutes * 100
+    if st.session_state.owner.available_minutes > 0 else 0
+)
+st.caption(
+    f"Budget: {st.session_state.owner.available_minutes} min available — "
+    f"pending tasks total ~{budget_pct:.0f}% of that."
+)
 
 if st.button("Generate schedule"):
-    if not st.session_state.pet.pending_tasks():
+    pending = st.session_state.pet.pending_tasks()
+    if not pending:
         st.warning("No pending tasks to schedule. Add some tasks first.")
     else:
-        # Wire to backend: Scheduler.build_plan() does the work
         scheduler = Scheduler(owner=st.session_state.owner)
-        plan = scheduler.build_plan()
+        plan      = scheduler.build_plan()
 
-        st.success(
-            f"Scheduled {len(plan.scheduled_tasks)} task(s) — "
-            f"{plan.total_scheduled_minutes()} min of {st.session_state.owner.available_minutes} min budget used."
-        )
+        # ── Conflict warnings — shown before the plan so owner sees them first
+        if plan.conflict_warnings:
+            for warning in plan.conflict_warnings:
+                st.warning(f"Scheduling conflict: {warning}")
 
+        # ── Budget summary
+        used = plan.total_scheduled_minutes()
+        budget = st.session_state.owner.available_minutes
+        if used <= budget:
+            st.success(
+                f"Scheduled {len(plan.scheduled_tasks)} task(s) — "
+                f"{used} of {budget} min used."
+            )
+        else:
+            st.error(f"Over budget! {used} min scheduled vs {budget} min available.")
+
+        # ── Scheduled tasks
         if plan.scheduled_tasks:
             st.markdown("#### Scheduled")
-            for st_task in plan.scheduled_tasks:
+            for s in plan.scheduled_tasks:
+                priority_color = {
+                    "CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"
+                }.get(s.task.priority.name, "⚪")
                 st.markdown(
-                    f"**{st_task.start_str} – {st_task.end_str}** &nbsp; "
-                    f"`{st_task.task.priority.name}` &nbsp; {st_task.task.title}  \n"
-                    f"*Why: {st_task.reason}*"
+                    f"{priority_color} **{s.start_str} – {s.end_str}** &nbsp; "
+                    f"`{s.task.priority.name}` &nbsp; {s.task.title}  \n"
+                    f"&nbsp;&nbsp;&nbsp; *{s.reason}*"
                 )
 
+        # ── Skipped tasks
         if plan.skipped_tasks:
             st.markdown("#### Skipped")
             for sk in plan.skipped_tasks:
-                st.markdown(f"- **{sk.task.title}** — {sk.reason}")
+                st.warning(f"**{sk.task.title}** was skipped — {sk.reason}")
