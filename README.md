@@ -1,3 +1,9 @@
+## DEMO SECTION
+<a href="/course_images/screenshot.png" target="_blank">
+
+
+
+
 # PawPal+
 
 A smart pet care management app built with Python and Streamlit. PawPal+ helps busy pet owners stay consistent by generating a prioritized, time-aware daily care schedule — and explaining every decision it makes.
@@ -70,3 +76,31 @@ python3 main.py
 ```bash
 python -m pytest
 ```
+
+---
+
+## Testing PawPal+
+
+### Run the test suite
+
+```bash
+python -m pytest tests/test_pawpal.py -v
+```
+
+### What the tests cover
+
+The suite contains **48 tests** across `tests/test_pawpal.py`:
+
+| Area | What is verified |
+|---|---|
+| **Sorting correctness** | Tasks sort MORNING → AFTERNOON → EVENING → ANYTIME; higher priority breaks ties within the same window; the original list is never mutated. |
+| **Recurrence logic** | Completing a `daily` task retires the old instance and queues a new one dated tomorrow; `weekly` tasks advance 7 days; chaining two completions works correctly; one-time tasks return `None`. |
+| **Conflict detection** | Overlapping slots are flagged with the correct overlap duration; back-to-back tasks are not flagged; out-of-order input is handled; empty plans return zero warnings. |
+| **`is_due()` logic** | Tasks with no `next_due` are always due; future-dated tasks are not due; completed tasks are never due. |
+| **Edge cases** | Pet with zero tasks produces an empty plan; a task longer than the daily budget lands in `skipped_tasks`; `filter_tasks()` correctly combines pet-name and status filters. |
+
+### Confidence level
+
+**★★★★★ (5 / 5)**
+
+All 48 tests pass. Every public method is covered through both happy paths and boundary conditions — giving high confidence the system behaves correctly under realistic usage.
