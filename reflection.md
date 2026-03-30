@@ -28,10 +28,20 @@
 - What constraints does your scheduler consider (for example: time, priority, preferences)?
 - How did you decide which constraints mattered most?
 
+=> The scheduler looks at three things: how much time the owner has in the day, how urgent each task is, and when the pet prefers to have it done (morning, afternoon, or evening).
+
+Time budget came first because it's a hard limit — if there's no time left, nothing else matters. Priority came second because some tasks like medication really can't wait, while a grooming session can. Time-of-day preference came last because it's a "nice to have" — the scheduler tries to respect it, but if the preferred window is already full, it finds the next open slot rather than skipping the task entirely.
+
+Basically I ranked them by consequence: running out of time is a crisis, missing a CRITICAL task is a problem, getting the walk done at 2pm instead of 9am is just a mild inconvenience.
+
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
+
+=> One tradeoff the scheduler makes is that it places tasks one at a time, from top to bottom, and never goes back to reconsider earlier decisions. So if a high-priority task gets placed in the morning and takes up most of the available window, a shorter task that would have fit perfectly gets pushed out — even though swapping the order would have worked.
+
+I kept this approach because it makes the schedule easy to explain. Every task has a clear "why" message, and the owner can follow the logic without needing a computer science degree. A smarter algorithm might squeeze in one extra task, but it would be much harder to trust or debug. For a pet care app where predictability matters more than perfection, simple and transparent beats clever and opaque.
 
 ---
 
