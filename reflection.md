@@ -5,8 +5,14 @@
 **a. Initial design**
 
 - Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
+=> The initial UML design uses six classes split across three layers. A data layer of pure dataclasses — Pet, Owner, and Task — stores who the plan is for and what needs to be done. A plan layer of ScheduledTask, SkippedTask, and DailyPlan  
+  represents the output, wrapping tasks with concrete times and explanations. A Scheduler class ties everything together, holding an Owner, a Pet, and a task pool, and producing a DailyPlan via build_plan(). Two enums, Priority and         
+  TimeWindow, drive the ordering logic.
 
+- What classes did you include, and what responsibilities did you assign to each?
+-> Pet and Owner hold profile data with no behavior — Owner also carries the day's time constraints. Task describes a single care activity including its duration, priority, and preferred time of day. ScheduledTask and SkippedTask are output
+  wrappers that pair a task with either a concrete time slot or a reason it was skipped. DailyPlan collects those two lists and exposes a summary() method for display. Scheduler is the only class with real logic — it owns the task pool and
+  runs the scheduling algorithm inside build_plan(), returning a DailyPlan.  
 **b. Design changes**
 
 - Did your design change during implementation?
