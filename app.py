@@ -1,4 +1,5 @@
 import streamlit as st
+from pawpal_system import Owner, Pet, Task, Scheduler, Priority, TimeWindow
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
@@ -38,16 +39,36 @@ At minimum, your system should:
 
 st.divider()
 
-st.subheader("Quick Demo Inputs (UI only)")
-owner_name = st.text_input("Owner name", value="Jordan")
-pet_name = st.text_input("Pet name", value="Mochi")
-species = st.selectbox("Species", ["dog", "cat", "other"])
+# ---------------------------------------------------------------------------
+# Session state — initialize once, persist across reruns
+# ---------------------------------------------------------------------------
+if "owner" not in st.session_state:
+    st.session_state.owner = Owner(name="Jordan", available_hours=3.0)
 
-st.markdown("### Tasks")
-st.caption("Add a few tasks. In your final version, these should feed into your scheduler.")
+if "pet" not in st.session_state:
+    st.session_state.pet = Pet(name="Mochi", species="dog")
+    st.session_state.owner.add_pet(st.session_state.pet)
 
 if "tasks" not in st.session_state:
-    st.session_state.tasks = []
+    st.session_state.tasks = []   # raw dicts for the UI table
+
+st.subheader("Owner & Pet Info")
+owner_name = st.text_input("Owner name", value=st.session_state.owner.name)
+available_hours = st.number_input("Hours available today", min_value=0.5, max_value=12.0,
+                                   value=st.session_state.owner.available_hours, step=0.5)
+pet_name = st.text_input("Pet name", value=st.session_state.pet.name)
+species = st.selectbox("Species", ["dog", "cat", "other"],
+                        index=["dog", "cat", "other"].index(st.session_state.pet.species)
+                        if st.session_state.pet.species in ["dog", "cat", "other"] else 2)
+
+# Sync form values back into session state objects
+st.session_state.owner.name = owner_name
+st.session_state.owner.available_hours = available_hours
+st.session_state.pet.name = pet_name
+st.session_state.pet.species = species
+
+st.markdown("### Tasks")
+st.caption("Add tasks below. Each one will be passed to the scheduler.")
 
 col1, col2, col3 = st.columns(3)
 with col1:
