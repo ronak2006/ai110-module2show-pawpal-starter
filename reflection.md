@@ -76,10 +76,20 @@ I kept the design where tasks live only on Pet and Scheduler always fetches them
 - What behaviors did you test?
 - Why were these tests important?
 
+=> I focused testing on the parts of the code where bugs would be invisible until something broke in production. The two original tests — task completion changing status, and adding a task increasing the pet's task count — were basic sanity checks, but the more important ones came later when I added recurrence.
+
+Recurring tasks were the trickiest part of the system because mark_complete() now has to do two things at once: retire the old instance and create a new one with the right date. So I wrote tests for each case separately — does the daily task advance by one day, does the weekly task advance by seven, does the old instance get marked completed, does the new instance start as incomplete, does it copy all the metadata correctly. Each of those could fail independently, so testing them separately made it much easier to pinpoint problems.
+
+I also tested is_due() with future dates, past dates, and no date at all, because that method gates everything — if it returns the wrong value, tasks either never show up or never go away.
+
 **b. Confidence**
 
 - How confident are you that your scheduler works correctly?
 - What edge cases would you test next if you had more time?
+
+=> Pretty confident on the happy path. The core scheduling loop — sort by priority, fit into time windows, respect the budget, explain every decision — works reliably and the tests back it up.
+
+Where I'm less confident is around edge cases I haven't explicitly tested yet. The one I'd go after first is what happens when two CRITICAL tasks both want the same morning window and there's only time for one. Right now the second one falls back to the next open slot, which is probably fine, but I haven't written a test that asserts exactly what the output should look like in that scenario. I'd also want to test what happens when the owner sets available_hours to something tiny like 0.5 — does every task get skipped gracefully, or does something break? And I'd test recurring tasks that were created with no next_due date, just to make sure the "fall back to today" logic actually works end to end and not just in isolation.
 
 ---
 
@@ -89,10 +99,20 @@ I kept the design where tasks live only on Pet and Scheduler always fetches them
 
 - What part of this project are you most satisfied with?
 
+=> The recurring task system. It's the part where the design really had to be thought through carefully — you can't just flip a boolean, you need a whole new object. Using dataclasses.replace() to copy all the fields automatically was a clean solution, and the fact that Pet.complete_task() handles everything (retire the old instance, append the new one) means the rest of the code doesn't have to know anything about recurrence at all. It just calls pending_tasks() and gets back whatever is due today.
+
 **b. What you would improve**
 
 - If you had another iteration, what would you improve or redesign?
 
+=> I'd add support for multiple pets in the UI properly. Right now the session state only holds one pet, and while the backend fully supports multiple pets through Owner, the Streamlit UI doesn't let you add a second one. That gap between what the backend can do and what the UI exposes is a bit frustrating.
+
+I'd also reconsider the greedy scheduling algorithm. It works and it's easy to explain, but there are situations where it makes obviously suboptimal choices — like filling up the morning window with medium-priority tasks and then having no room for a high-priority task that arrives later in the sort. A smarter approach would look at all the tasks together before committing any of them.
+
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
+
+=> Design on paper first, then code. I went into this thinking the UML was just a formality, but it genuinely saved time. When I had a clear picture of which class owned what, decisions during implementation were fast — I didn't have to stop and wonder "where does this method go?" because the diagram had already answered it. The times I ran into confusion were usually when I hadn't thought through a relationship clearly enough before starting to type.
+
+On the AI side: it's a great first draft machine, but a bad decision maker. It will generate working code that violates your own design principles if you let it. The value isn't in accepting what it gives you — it's in using the output as a starting point and then pushing back when something doesn't fit.
