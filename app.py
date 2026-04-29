@@ -1,5 +1,6 @@
 import streamlit as st
 from pawpal_system import Owner, Pet, Task, Scheduler, Priority, TimeWindow, sort_tasks_by_time
+from ai_agent import analyze_care_context
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 st.title("🐾 PawPal+")
@@ -36,6 +37,31 @@ st.session_state.owner.name            = owner_name
 st.session_state.owner.available_hours = available_hours
 st.session_state.pet.name              = pet_name
 st.session_state.pet.species           = species
+
+# ---------------------------------------------------------------------------
+# AI Care Intelligence — Context-aware adjustments
+# ---------------------------------------------------------------------------
+st.divider()
+st.subheader("🤖 AI Care Intelligence")
+st.markdown(
+    "Provide context about your day or your pet's condition. "
+    "The AI will suggest schedule adjustments or new tasks based on this context."
+)
+
+daily_context = st.text_area(
+    "Daily Context",
+    placeholder="e.g., 'Mochi seems a bit lethargic today' or 'It's very hot outside' or 'I have a late meeting today'",
+    help="Describe anything unusual about today that might affect your pet's care."
+)
+
+if st.button("Analyze Context & Suggest Adjustments"):
+    if not daily_context:
+        st.warning("Please provide some context first.")
+    else:
+        with st.spinner("AI is analyzing context and your current plan..."):
+            # Placeholder for AI logic — will be implemented in the next step
+            st.info("AI Analysis: 'Based on your context, I suggest keeping the walk short and moving it to the evening when it's cooler.' (Simulated)")
+            st.button("Apply AI Suggestions", disabled=True) # Will be enabled later
 
 # ---------------------------------------------------------------------------
 # Add a Task
@@ -128,6 +154,61 @@ else:
 # ---------------------------------------------------------------------------
 # Generate Schedule — with conflict warnings
 # ---------------------------------------------------------------------------
+st.divider()
+st.subheader("Build Today's Schedule")
+
+budget_pct = (
+    sum(t.duration_minutes for t in st.session_state.pet.pending_tasks())
+    / st.session_state.owner.available_minutes * 100
+    if st.session_state.owner.available_minutes > 0 else 0
+)
+st.caption(
+    f"Budget: {st.session_state.owner.available_minutes} min available — "
+    f"pending tasks total ~{budget_pct:.0f}% of that."
+)
+
+if st.button("Generate schedule"):
+    pending = st.session_state.pet.pending_tasks()
+    if not pending:
+        st.warning("No pending tasks to schedule. Add some tasks first.")
+    else:
+        scheduler = Scheduler(owner=st.session_state.owner)
+        plan      = scheduler.build_plan()
+
+        # ── Conflict warnings — shown before the plan so owner sees them first
+        if plan.conflict_warnings:
+            for warning in plan.conflict_warnings:
+                st.warning(f"Scheduling conflict: {warning}")
+
+        # ── Budget summary
+        used = plan.total_scheduled_minutes()
+        budget = st.session_state.owner.available_minutes
+        if used <= budget:
+            st.success(
+                f"Scheduled {len(plan.scheduled_tasks)} task(s) — "
+                f"{used} of {budget} min used."
+            )
+        else:
+            st.error(f"Over budget! {used} min scheduled vs {budget} min available.")
+
+        # ── Scheduled tasks
+        if plan.scheduled_tasks:
+            st.markdown("#### Scheduled")
+            for s in plan.scheduled_tasks:
+                priority_color = {
+                    "CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"
+                }.get(s.task.priority.name, "⚪")
+                st.markdown(
+                    f"{priority_color} **{s.start_str} – {s.end_str}** &nbsp; "
+                    f"`{s.task.priority.name}` &nbsp; {s.task.title}  \n"
+                    f"&nbsp;&nbsp;&nbsp; *{s.reason}*"
+                )
+
+        # ── Skipped tasks
+        if plan.skipped_tasks:
+            st.markdown("#### Skipped")
+            for sk in plan.skipped_tasks:
+                st.warning(f"**{sk.task.title}** was skipped — {sk.reason}")----------------------------------
 st.divider()
 st.subheader("Build Today's Schedule")
 
