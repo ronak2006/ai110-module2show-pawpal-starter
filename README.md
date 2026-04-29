@@ -59,6 +59,10 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+**API Key Configuration:**
+1. Create a `.env` file in the root directory.
+2. Add your Gemini API key: `GEMINI_API_KEY=your_key_here`
+
 ## Run the app
 
 ```bash
@@ -81,6 +85,13 @@ python -m pytest
 
 ## Testing PawPal+
 
+### Run the AI Reliability Harness
+
+```bash
+python3 eval_agent.py
+```
+This script evaluates the AI Agent against edge cases (like extreme time constraints and weather hazards) to ensure the AI modifies the schedule safely and appropriately without violating constraints.
+
 ### Run the test suite
 
 ```bash
@@ -98,6 +109,12 @@ The suite contains **48 tests** across `tests/test_pawpal.py`:
 | **Conflict detection** | Overlapping slots are flagged with the correct overlap duration; back-to-back tasks are not flagged; out-of-order input is handled; empty plans return zero warnings. |
 | **`is_due()` logic** | Tasks with no `next_due` are always due; future-dated tasks are not due; completed tasks are never due. |
 | **Edge cases** | Pet with zero tasks produces an empty plan; a task longer than the daily budget lands in `skipped_tasks`; `filter_tasks()` correctly combines pet-name and status filters. |
+
+### Confidence level
+
+(5/5)
+
+All 48 tests pass. dge cases** | Pet with zero tasks produces an empty plan; a task longer than the daily budget lands in `skipped_tasks`; `filter_tasks()` correctly combines pet-name and status filters. |
 
 ### Confidence level
 
