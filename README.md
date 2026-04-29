@@ -1,183 +1,118 @@
 # PawPal+
 
-A smart pet care management app built with Python and Streamlit. PawPal+ helps busy pet owners stay consistent by generating a prioritized, time-aware daily care schedule — and explaining every decision it makes.
+PawPal+ is a pet care scheduling app that I built in Module 2 and extended for the final project by adding a Gemini AI layer. The idea is simple: you tell it what tasks your pet needs done today, how much time you have, and it builds a schedule. The new part is that you can also just describe your day in plain English — "it's really hot outside" or "I only have 20 minutes" — and the AI will adjust the schedule for you.
 
 ---
 
-## Base Project
+## Original Project — Module 2: PawPal
 
-**This project extends Module 2 — PawPal (pet care scheduler).**
+The base project was **Module 2 — PawPal**, a pure Python scheduling app with no AI at all. I built a system where a pet owner could define care tasks (walks, feedings, medications), set a daily time budget, and get back a prioritized schedule. The scheduler sorted tasks by urgency (CRITICAL → HIGH → MEDIUM → LOW), tried to fit each one into its preferred time window (MORNING, AFTERNOON, EVENING), and explained every decision it made — why a task was placed where it was, and why something got skipped. It also handled recurring tasks (daily/weekly) and detected scheduling conflicts. The whole thing ran in a Streamlit UI with a full test suite.
 
-The original Module 2 system was a pure Python scheduling app that let an owner define tasks for a pet, set a daily time budget, and generate a priority-ordered care schedule. It included:
-
-- `Task`, `Pet`, `Owner`, `Scheduler`, `DailyPlan` data model
-- Priority-first greedy scheduling with time-window placement
-- Conflict detection (`Scheduler.detect_conflicts()`)
-- Recurring tasks (`daily` / `weekly` cadence via `timedelta`)
-- A Streamlit UI and a CLI demo script
-- A full unit test suite covering scheduling, recurrence, filtering, and conflict logic
-
-**New in Project 4:**
-
-- **AI Care Intelligence** — A Gemini-powered agent (`ai_agent.py`) that reads the owner's free-text daily context and returns structured JSON suggestions (modify / add / remove tasks). Suggestions are displayed in the UI and can be applied with one click.
-- **AI Reliability Harness** — An evaluation script (`eval_agent.py`) that runs the AI agent against two adversarial test cases (severe time crunch, extreme heat) and scores whether the AI respected safety and budget constraints.
+What it couldn't do: react to anything. If it was 100 degrees outside, the schedule didn't care. That's what this extension fixes.
 
 ---
 
-## Features
+## What PawPal+ Does and Why It Matters
 
-### Priority-first scheduling
-Tasks are ranked by urgency (CRITICAL → HIGH → MEDIUM → LOW). The scheduler always places the most important tasks first, ensuring critical care — medications, feedings — is never bumped by lower-priority activities.
+The problem with most pet care apps is they're just glorified to-do lists. They don't know that your dog probably shouldn't go on a 30-minute walk when it's 95 degrees, or that if you only have 15 minutes today the evening walk should probably be the first thing cut.
 
-### Time-window placement
-Each task can declare a preferred time of day: MORNING, AFTERNOON, EVENING, or ANYTIME. The scheduler attempts to honor that preference and explains when it can't, falling back gracefully to the next open slot rather than skipping the task.
-
-### Daily time budget
-The owner sets a total number of care hours available for the day. The scheduler tracks cumulative minutes and skips any task that would exceed the budget, reporting exactly how many minutes were available vs. used.
-
-### Sorting by time — `sort_tasks_by_time()`
-Tasks entered in any order can be sorted chronologically by their preferred window (MORNING first, then AFTERNOON, EVENING, ANYTIME), with priority as a tiebreaker within the same window. The original list is never mutated.
-
-### Filtering by pet and status — `Owner.filter_tasks()`
-Tasks across all pets can be filtered by pet name and/or completion status (`"pending"` / `"done"` / `"all"`). Recurring tasks are evaluated with `Task.is_due()` so a task completed today correctly shows as done even before its `completed` flag is set on the next instance.
-
-### Recurring tasks — `"daily"` and `"weekly"` cadence
-Tasks can repeat automatically. When a recurring task is marked complete, the old instance is retired and a brand-new instance is appended with `next_due` advanced by 1 day (daily) or 7 days (weekly) via Python's `timedelta`. Future schedules pick it up automatically — no manual re-adding required.
-
-### Conflict detection — `Scheduler.detect_conflicts()`
-After every scheduling run, the scheduler scans all placed tasks for overlapping time slots and stores human-readable warnings on the plan. Warnings appear prominently in the UI before the schedule so the owner can act on them. The check is non-raising and non-blocking — a clean schedule returns an empty list.
-
-### Explainable plans
-Every scheduled task includes a plain-English reason (e.g. *"Fits in preferred morning window (CRITICAL priority)"* or *"Preferred afternoon window unavailable — moved to next open slot"*). Skipped tasks include a reason too, so the owner always knows why something was left out.
-
-### AI Care Intelligence (new in Project 4)
-The owner types a free-text description of their day (e.g. "It's very hot outside" or "I only have 20 minutes today"). Gemini analyzes the current task list and context, then returns structured JSON suggestions — modify an existing task, add a new one, or remove one. Suggestions are shown in the UI with explanations and applied in one click.
+PawPal+ tries to fix that by combining a rule-based scheduler (which handles the hard constraints like time budget and priority) with an AI layer (which handles the fuzzy real-world stuff like weather, illness, and schedule pressure). You type what's going on, and it gives you specific suggestions — shorten this task, add this one, remove that one — that you can apply in one click.
 
 ---
 
-## Project structure
+## Architecture Overview
+
+The system has four main pieces:
+
+1. **`app.py` (Streamlit UI)** — This is what the owner actually sees and interacts with. It holds session state (the owner, the pet, the task list) and has two main workflows: the original scheduling flow and the new AI suggestions flow.
+
+2. **`ai_agent.py` (AI layer)** — This takes the owner's free-text context and the current task list, builds a prompt, sends it to Gemini, and parses the response back into a structured list of actions. It returns JSON — either `{"suggestions": [...]}` or `{"error": "..."}` — so the UI always knows what it's getting.
+
+3. **`pawpal_system.py` (backend logic)** — All the original classes live here: `Task`, `Pet`, `Owner`, `Scheduler`, `DailyPlan`. The AI suggestions are applied directly to these objects — modify a task's duration, add a new task to the pet, remove one — and then the scheduler rebuilds the plan from scratch.
+
+4. **`eval_agent.py` (reliability harness)** — A separate script that tests the AI against two adversarial scenarios (extreme time crunch, extreme heat) and prints PASS/FAIL based on whether the AI respected the constraints.
+
+The full data flow diagram is in `Mermaid.js` — paste it into [mermaid.live](https://mermaid.live) to see it rendered.
+
+---
+
+## Project Structure
 
 ```
-pawpal_system.py   — all backend classes and scheduling logic
-app.py             — Streamlit UI, wired to the backend and AI agent
-ai_agent.py        — Gemini-powered care context analyzer
-eval_agent.py      — AI reliability harness (runs adversarial test cases)
-main.py            — CLI demo script (run to verify logic without the UI)
+pawpal_system.py   — backend classes (Task, Pet, Owner, Scheduler, DailyPlan)
+app.py             — Streamlit UI
+ai_agent.py        — Gemini AI agent
+eval_agent.py      — reliability harness
+main.py            — CLI demo (no UI needed)
 tests/
-  test_pawpal.py   — automated unit tests (run with python -m pytest)
-Mermaid.js         — UML class diagram (paste into mermaid.live to render)
+  test_pawpal.py   — 47 unit tests
+Mermaid.js         — architecture diagram (paste into mermaid.live)
+reflection.md      — design and AI collaboration reflection
 ```
 
 ---
 
-## Setup
+## Setup Instructions
 
+**Step 1 — Clone the repo and set up a virtual environment:**
 ```bash
+git clone <repo-url>
+cd pawpal-starter
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+```
+
+**Step 2 — Install dependencies:**
+```bash
 pip install -r requirements.txt
 ```
 
-**API Key Configuration:**
-1. Create a `.env` file in the root directory.
-2. Add your Gemini API key: `GEMINI_API_KEY=your_key_here`
+**Step 3 — Add your Gemini API key:**
 
----
+Create a file called `.env` in the root of the project:
+```
+GEMINI_API_KEY=your_key_here
+```
+You can get a free key at [aistudio.google.com](https://aistudio.google.com). Note: the free tier has a daily request limit, so if you see a 429 error just wait until the next day.
 
-## Run the app
-
+**Step 4 — Run the app:**
 ```bash
 streamlit run app.py
 ```
 
-## Run the CLI demo
-
+**Step 5 — (Optional) Run the CLI demo to see the scheduler work without the UI:**
 ```bash
 python3 main.py
 ```
 
-## Run tests
-
-```bash
-python -m pytest
-```
-
----
-
-## Testing PawPal+
-
-### Run the AI Reliability Harness
-
+**Step 6 — (Optional) Run the AI reliability harness:**
 ```bash
 python3 eval_agent.py
 ```
 
-This script evaluates the AI agent against two adversarial edge cases and prints a PASS/FAIL verdict for each. Example output:
-
-```
-=========================================
-  PawPal+ AI Reliability Evaluator
-=========================================
-
-[Test Case 1] Constraint Checking: Severe Time Crunch
-Context: 'I only have 15 minutes today total.'
-Suggestions generated: 3
-  - REMOVE: Morning walk (Walk exceeds the 15-minute budget.)
-  - REMOVE: Evening walk (No time remaining after feeding.)
-  - MODIFY: Feeding (duration_minutes: 10, Keep it short.)
-Simulated new total duration: 10 min
-=> PASS: AI respected the time constraint.
-
-[Test Case 2] Safety Guardrail: Extreme Heat
-Context: 'It is 105 degrees outside today.'
-Suggestions generated: 2
-  - MODIFY: Morning walk (Shorten and move indoors due to extreme heat.)
-  - MODIFY: Evening walk (105 degrees is dangerous — skip or move inside.)
-=> PASS: AI appropriately altered walking tasks due to heat.
-
-=========================================
-Evaluation Complete.
-```
-
-### Run the test suite
-
+**Step 7 — Run the tests:**
 ```bash
 python -m pytest tests/test_pawpal.py -v
 ```
 
-### What the tests cover
-
-The suite contains **47 tests** across `tests/test_pawpal.py`:
-
-| Area | What is verified |
-|---|---|
-| **Sorting correctness** | Tasks sort MORNING → AFTERNOON → EVENING → ANYTIME; higher priority breaks ties within the same window; the original list is never mutated. |
-| **Recurrence logic** | Completing a `daily` task retires the old instance and queues a new one dated tomorrow; `weekly` tasks advance 7 days; chaining two completions works correctly; one-time tasks return `None`. |
-| **Conflict detection** | Overlapping slots are flagged with the correct overlap duration; back-to-back tasks are not flagged; out-of-order input is handled; empty plans return zero warnings. |
-| **`is_due()` logic** | Tasks with no `next_due` are always due; future-dated tasks are not due; completed tasks are never due. |
-| **Edge cases** | Pet with zero tasks produces an empty plan; a task longer than the daily budget lands in `skipped_tasks`; `filter_tasks()` correctly combines pet-name and status filters. |
-| **AI agent** | `modify`/`add`/`remove` suggestions parsed and applied correctly; malformed JSON and missing API key return safe error dicts; markdown-fenced responses are stripped before parsing. All tests use a mocked Gemini client — no API key required. |
-
-### Confidence level
-
-**★★★★★ (5 / 5)**
-
-All 47 tests pass. Every public method is covered through both happy paths and boundary conditions — giving high confidence the system behaves correctly under realistic usage.
-
 ---
 
-## Sample AI Input/Output
+## Sample Interactions
 
-**Input context:** *"Mochi seems lethargic today and it's very hot outside."*
+### Example 1 — Hot weather
 
-**AI suggestions returned:**
+**What I typed:** *"It's 95 degrees outside and Mochi seems really tired today."*
+
+**Tasks before:** Morning walk (30 min, HIGH, MORNING), Evening walk (30 min, MEDIUM, EVENING), Feeding (10 min, CRITICAL, ANYTIME)
+
+**What the AI returned:**
 ```json
 [
   {
     "action": "modify",
     "target_title": "Morning walk",
     "task_data": { "duration_minutes": 10, "preferred_time": "EVENING" },
-    "reason": "Lethargy and heat — keep the walk short and wait for cooler evening temperatures."
+    "reason": "Extreme heat and lethargy — shorten the walk and move it to cooler evening hours."
   },
   {
     "action": "add",
@@ -187,23 +122,101 @@ All 47 tests pass. Every public method is covered through both happy paths and b
       "priority": "HIGH",
       "preferred_time": "MORNING"
     },
-    "reason": "Lethargy in hot weather can indicate dehydration — ensure fresh water is available."
+    "reason": "Lethargy in hot weather can mean dehydration — make sure fresh water is available."
   }
 ]
 ```
-
-**Result after applying:** Morning walk shortened to 10 min and moved to EVENING; a new HIGH-priority "Check water bowl" task added for MORNING.
+**Result:** Morning walk shortened to 10 min and moved to EVENING. A new "Check water bowl" task added for MORNING.
 
 ---
 
-**Input context:** *"I only have 20 minutes today."*
+### Example 2 — Short on time
 
-**AI suggestions returned:**
+**What I typed:** *"I only have about 20 minutes today, really busy with work."*
+
+**What the AI returned:**
 ```json
 [
-  { "action": "remove", "target_title": "Evening walk", "reason": "Exceeds the remaining time budget." },
-  { "action": "modify", "target_title": "Morning walk", "task_data": { "duration_minutes": 10 }, "reason": "Reduced to fit within the 20-minute constraint." }
+  {
+    "action": "remove",
+    "target_title": "Evening walk",
+    "reason": "Removing the lower-priority walk to stay within your 20-minute budget."
+  },
+  {
+    "action": "modify",
+    "target_title": "Morning walk",
+    "task_data": { "duration_minutes": 10 },
+    "reason": "Shortened to fit alongside feeding within your available time."
+  }
 ]
 ```
+**Result:** Evening walk removed, morning walk cut to 10 min — total now fits within 20 minutes.
 
-**Result after applying:** Evening walk removed; Morning walk cut to 10 min — total care time now fits within budget.
+---
+
+### Example 3 — Sick pet
+
+**What I typed:** *"Mochi threw up this morning and seems really off."*
+
+**What the AI returned:**
+```json
+[
+  {
+    "action": "modify",
+    "target_title": "Morning walk",
+    "task_data": { "duration_minutes": 5, "priority": "LOW" },
+    "reason": "Sick pets need rest — keep activity minimal until she feels better."
+  },
+  {
+    "action": "add",
+    "task_data": {
+      "title": "Monitor symptoms",
+      "duration_minutes": 10,
+      "priority": "CRITICAL",
+      "preferred_time": "MORNING"
+    },
+    "reason": "Track how often she's vomiting and call the vet if it continues."
+  }
+]
+```
+**Result:** Walk shortened and deprioritized. A CRITICAL "Monitor symptoms" task added for the morning.
+
+---
+
+## Design Decisions
+
+**Why a greedy scheduler instead of something smarter?**
+The scheduler works by going through tasks one at a time, highest priority first, and placing each one without going back to reconsider earlier decisions. This means it can make suboptimal choices — like filling the morning window with medium-priority tasks and then not having room for a high-priority one that shows up later. But every decision it makes comes with a plain-English explanation, which I think matters more for a care app than squeezing in one extra task. Simple and explainable beat clever and opaque.
+
+**Why does the AI return JSON instead of just text?**
+I tried having the AI return a text description of what to change, but then you still have to parse it and figure out what "shorten the walk" actually means in code. By constraining the response to a typed JSON schema (`action`, `target_title`, `task_data`, `reason`), the output can be applied directly to the task objects without any interpretation. It also makes failures obvious — if the JSON is malformed, you get a clean error message instead of silently doing the wrong thing.
+
+**Why no conversation history?**
+Every call to `analyze_care_context` is completely independent — it sends the current task list and context with no memory of what was suggested before. This keeps things simple and predictable. The owner can apply suggestions, then analyze again and get fresh advice on the updated state. The downside is that the AI can't say things like "well, I already suggested shortening that walk." That would be a good next feature.
+
+---
+
+## Testing Summary
+
+**What worked well:**
+- All 47 tests pass. The core scheduler logic (sorting, recurrence, conflict detection, filtering) is well-covered and I'm confident in it.
+- Mocking the Gemini API with `unittest.mock` was really useful — it meant I could test all the AI parsing and apply logic without needing a live key or internet connection. Every CI run just works.
+- The eval harness caught a real issue: the AI sometimes gives correct suggestions but phrases the reason in a way that doesn't include keywords like "heat" or "temperature," which caused false FAILs. That made me realize keyword-matching is a fragile evaluation strategy.
+
+**What didn't:**
+- The Gemini free tier rate limits were painful during development. I kept hitting daily quotas and had to switch between models (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`) to find one with remaining quota. It made iterating on the prompt slow.
+- The eval harness only has 2 test cases, which isn't enough to feel confident about reliability across the full range of possible inputs.
+
+**What I learned:**
+- Mock external APIs as early as possible. I wrote the live tests first and wasted a lot of time on rate limit errors before switching to mocks.
+- Structured prompting (asking for a specific JSON schema) is the right approach when you need AI output to be machine-readable. Free-form text responses are fine for humans but hard to act on in code.
+
+---
+
+## Reflection
+
+The biggest thing this project taught me is that AI is most useful at the boundary between structured rules and messy human input. The scheduling logic — sort by priority, fit into time windows, check the budget — is straightforward code. What's hard is handling "it's hot" or "I'm exhausted today." That's where language models genuinely help, and trying to do it with if/else logic would be both brittle and way more work.
+
+The experience that stuck with me most was the AI-generated placeholder code. It looked right — there was a spinner, a success message, a button — but the button was permanently disabled and the message was hardcoded. It passed a quick glance. The lesson is that you have to actually read AI-generated code, not just run it and assume it works because it didn't throw an error.
+
+If I had more time I'd add persistent storage (so the schedule survives a page refresh), expand the eval harness to at least 10 test cases with numeric outcome checks instead of keyword matching, and add conversation history so the AI can remember what it already suggested in a session.
