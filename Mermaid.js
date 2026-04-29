@@ -1,105 +1,58 @@
-classDiagram
-    class Priority {
-        <<enumeration>>
-        LOW
-        MEDIUM
-        HIGH
-        CRITICAL
-    }
+flowchart TD
+    subgraph UI["Streamlit UI (app.py)"]
+        A[Owner & Pet Info Form]
+        B[AI Care Intelligence Panel]
+        C[Add Task Form]
+        D[Task List & Complete]
+        E[Filter Tasks]
+        F[Generate Schedule]
+    end
 
-    class TimeWindow {
-        <<enumeration>>
-        MORNING
-        AFTERNOON
-        EVENING
-        ANYTIME
-    }
+    subgraph Agent["AI Agent (ai_agent.py)"]
+        G[analyze_care_context]
+        H[Gemini 2.5 Flash API]
+    end
 
-    class Task {
-        +str title
-        +str category
-        +int duration_minutes
-        +Priority priority
-        +TimeWindow preferred_time
-        +bool completed
-        +str notes
-        +str recurrence
-        +str next_due
-        +mark_complete() Task
-        +is_due() bool
-        +generate_next_occurrence() Task
-    }
+    subgraph Eval["Reliability Harness (eval_agent.py)"]
+        I[Test Case 1: Time Crunch]
+        J[Test Case 2: Extreme Heat]
+        K[PASS / FAIL Verdict]
+    end
 
-    class Pet {
-        +str name
-        +str species
-        +str breed
-        +int age
-        +list~Task~ tasks
-        +add_task(task: Task)
-        +remove_task(title: str)
-        +pending_tasks() list~Task~
-        +complete_task(title: str) bool
-    }
+    subgraph Core["Backend Logic (pawpal_system.py)"]
+        L[Owner]
+        M[Pet]
+        N[Task]
+        O[Scheduler]
+        P[DailyPlan]
+        Q[ScheduledTask]
+        R[SkippedTask]
+    end
 
-    class Owner {
-        +str name
-        +float available_hours
-        +int day_start_hour
-        +int day_end_hour
-        +list~Pet~ pets
-        +available_minutes() int
-        +add_pet(pet: Pet)
-        +remove_pet(name: str)
-        +get_all_tasks() list~Task~
-        +get_pending_tasks() list~Task~
-        +filter_tasks(pet_name, status) list~Task~
-    }
+    %% UI → Core
+    A -->|sets name, hours| L
+    A -->|sets name, species| M
+    C -->|add_task| M
+    D -->|complete_task| M
+    E -->|filter_tasks| L
+    F -->|build_plan| O
 
-    class ScheduledTask {
-        +Task task
-        +datetime start_time
-        +datetime end_time
-        +str reason
-        +start_str() str
-        +end_str() str
-    }
+    %% UI → AI Agent
+    B -->|daily context + pet + owner| G
+    G -->|prompt| H
+    H -->|JSON suggestions| G
+    G -->|suggestions list| B
+    B -->|apply: modify/add/remove| M
 
-    class SkippedTask {
-        +Task task
-        +str reason
-    }
+    %% Core data flow
+    L -->|get_pending_tasks| O
+    M -->|tasks| L
+    O -->|DailyPlan| P
+    P --> Q
+    P --> R
+    O -->|detect_conflicts| P
 
-    class DailyPlan {
-        +str date
-        +list~ScheduledTask~ scheduled_tasks
-        +list~SkippedTask~ skipped_tasks
-        +list~str~ conflict_warnings
-        +total_scheduled_minutes() int
-        +sort_by_time()
-        +summary() str
-    }
-
-    class Scheduler {
-        +Owner owner
-        +build_plan(date: str) DailyPlan
-        +detect_conflicts(plan: DailyPlan) list~str~
-    }
-
-    class sort_tasks_by_time {
-        <<function>>
-        +tasks list~Task~
-        +returns list~Task~
-    }
-
-    Owner "1" --> "1..*" Pet
-    Pet "1" --> "0..*" Task
-    Task --> Priority
-    Task --> TimeWindow
-    ScheduledTask --> Task
-    SkippedTask --> Task
-    DailyPlan "1" --> "0..*" ScheduledTask
-    DailyPlan "1" --> "0..*" SkippedTask
-    Scheduler --> Owner
-    Scheduler ..> DailyPlan : builds
-    sort_tasks_by_time ..> Task : sorts
+    %% Eval → Agent
+    I -->|analyze_care_context| G
+    J -->|analyze_care_context| G
+    G -->|suggestions| K

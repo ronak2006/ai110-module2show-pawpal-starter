@@ -59,9 +59,65 @@ if st.button("Analyze Context & Suggest Adjustments"):
         st.warning("Please provide some context first.")
     else:
         with st.spinner("AI is analyzing context and your current plan..."):
-            # Placeholder for AI logic — will be implemented in the next step
-            st.info("AI Analysis: 'Based on your context, I suggest keeping the walk short and moving it to the evening when it's cooler.' (Simulated)")
-            st.button("Apply AI Suggestions", disabled=True) # Will be enabled later
+            result = analyze_care_context(daily_context, st.session_state.pet, st.session_state.owner)
+
+        if "error" in result:
+            st.error(f"AI Error: {result['error']}")
+        else:
+            suggestions = result.get("suggestions", [])
+            if not suggestions:
+                st.info("AI analyzed your context and found no adjustments needed.")
+            else:
+                st.session_state["ai_suggestions"] = suggestions
+                st.success(f"AI found {len(suggestions)} suggestion(s):")
+                for s in suggestions:
+                    action = s.get("action", "?").upper()
+                    target = s.get("target_title") or s.get("task_data", {}).get("title", "new task")
+                    reason = s.get("reason", "")
+                    st.markdown(f"- **{action}** `{target}` — {reason}")
+
+if "ai_suggestions" in st.session_state and st.session_state["ai_suggestions"]:
+    if st.button("Apply AI Suggestions"):
+        pet = st.session_state.pet
+        applied = []
+        for s in st.session_state["ai_suggestions"]:
+            action = s.get("action")
+            target = s.get("target_title", "")
+            task_data = s.get("task_data", {})
+
+            if action == "remove":
+                pet.remove_task(target)
+                applied.append(f"Removed: {target}")
+
+            elif action == "modify":
+                for t in pet.tasks:
+                    if t.title == target and not t.completed:
+                        if "duration_minutes" in task_data:
+                            t.duration_minutes = int(task_data["duration_minutes"])
+                        if "priority" in task_data:
+                            t.priority = Priority[task_data["priority"]]
+                        if "preferred_time" in task_data:
+                            t.preferred_time = TimeWindow[task_data["preferred_time"]]
+                        if "notes" in task_data:
+                            t.notes = task_data["notes"]
+                        break
+                applied.append(f"Modified: {target}")
+
+            elif action == "add":
+                new_task = Task(
+                    title=task_data.get("title", "AI Task"),
+                    category="ai_suggested",
+                    duration_minutes=int(task_data.get("duration_minutes", 15)),
+                    priority=Priority[task_data.get("priority", "MEDIUM")],
+                    preferred_time=TimeWindow[task_data.get("preferred_time", "ANYTIME")],
+                    notes=task_data.get("notes", ""),
+                )
+                pet.add_task(new_task)
+                applied.append(f"Added: {new_task.title}")
+
+        del st.session_state["ai_suggestions"]
+        st.success("Applied: " + ", ".join(applied))
+        st.rerun()
 
 # ---------------------------------------------------------------------------
 # Add a Task

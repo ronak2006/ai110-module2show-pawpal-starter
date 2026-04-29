@@ -355,7 +355,8 @@ def test_filter_tasks_recurring_completed_this_cycle_is_not_pending():
     """After complete_task(), the retired recurring instance must not appear as pending."""
     owner = Owner(name="Jordan", available_hours=2.0)
     mochi = Pet(name="Mochi", species="dog")
-    mochi.add_task(_task("Feeding", recurrence="daily", next_due="2026-03-30"))
+    today_str = datetime.today().strftime("%Y-%m-%d")
+    mochi.add_task(_task("Feeding", recurrence="daily", next_due=today_str))
     owner.add_pet(mochi)
 
     mochi.complete_task("Feeding")   # retires today's instance, queues tomorrow's

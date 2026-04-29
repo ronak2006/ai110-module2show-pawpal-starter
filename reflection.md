@@ -116,3 +116,23 @@ I'd also reconsider the greedy scheduling algorithm. It works and it's easy to e
 => Designfirst, then code. I went into this thinking the UML was just a formality, but it genuinely saved time. When I had a clear picture of which class owned what, decisions during implementation were fast, I didn't have to stop and wonder "where does this method go?" because the diagram had already answered it. The times I ran into confusion were usually when I hadn't thought through a relationship clearly enough before starting to type.
 
 On the AI side: it's a great first draft machine, but a bad decision maker. It will generate working code that violates your own design principles if you let it. The value isn't in accepting what it gives you, it's in using the output as a starting point and then pushing back when something doesn't fit.
+
+---
+
+## 6. Project 4 Extension — AI Feature Reflection
+
+**a. How AI was used to build the new feature**
+
+For the Project 4 extension I used AI assistance at three stages. First, designing the JSON contract between `analyze_care_context` and the Streamlit UI — I asked for a structured format that would be easy to validate and apply programmatically, and the action/target_title/task_data/reason schema came out of that conversation. Second, writing the prompt in `ai_agent.py` — I iterated several times on how to give Gemini enough context (pet name, species, time budget, pending task list) without the prompt becoming unwieldy. Third, debugging the Streamlit session state pattern for holding suggestions between button clicks, which required understanding how Streamlit reruns work.
+
+**b. One helpful and one flawed AI suggestion**
+
+*Helpful:* When designing the reliability harness in `eval_agent.py`, AI suggested simulating the effect of suggestions on the task list by walking through remove/modify actions and computing a new total duration — rather than actually mutating the pet object and re-running the scheduler. That kept the evaluator stateless and easy to read.
+
+*Flawed:* The initial `app.py` AI section that Gemini generated left the "Analyze Context" button wired to a hardcoded simulated string and the "Apply AI Suggestions" button permanently `disabled=True` — essentially a non-functional placeholder committed as if it were working code. It also left no session state mechanism to carry suggestions across Streamlit reruns, so even if the button had been enabled it would have had nothing to apply. Both had to be rewritten from scratch.
+
+**c. System limitations and future improvements**
+
+The current AI feature has two notable limitations. First, it is stateless — every call to Gemini re-sends the full task list and context with no memory of prior suggestions, so if the owner applies suggestions and then asks a follow-up question, the AI has no awareness of what it already recommended. Second, the reliability harness only runs two test cases and grades on keywords in the AI's reasons; a more robust harness would run a larger battery of prompts and evaluate the *numeric* outcomes (final total minutes, presence/absence of specific tasks) rather than text matching.
+
+Future improvements: add a session-level conversation history so the AI can reason across multiple context inputs in one session; expand the eval harness to cover a wider range of edge cases (multiple pets, zero-budget, CRITICAL task conflicts); and consider returning a confidence score alongside each suggestion so the UI can surface low-confidence suggestions differently.
