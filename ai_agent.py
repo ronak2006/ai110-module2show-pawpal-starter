@@ -11,7 +11,7 @@ def get_gemini_client():
     if not api_key or api_key == "your_gemini_api_key_here":
         return None
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel('gemini-2.5-flash')
+    return genai.GenerativeModel('gemini-2.5-flash-lite')
 
 def analyze_care_context(context, pet, owner):
     """

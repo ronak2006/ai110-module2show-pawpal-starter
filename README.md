@@ -1,5 +1,9 @@
 # PawPal+
 
+🎥 **Video Walkthrough:** [Watch on Loom](https://www.loom.com/share/ccfe8916395246bcbcaa03ca07094f42)
+
+---
+
 PawPal+ is a pet care scheduling app that I built in Module 2 and extended for the final project by adding a Gemini AI layer. The idea is simple: you tell it what tasks your pet needs done today, how much time you have, and it builds a schedule. The new part is that you can also just describe your day in plain English — "it's really hot outside" or "I only have 20 minutes" — and the AI will adjust the schedule for you.
 
 ---
