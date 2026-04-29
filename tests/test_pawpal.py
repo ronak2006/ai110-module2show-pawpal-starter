@@ -4,6 +4,7 @@ Run with: python -m pytest
 """
 
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -12,6 +13,7 @@ from pawpal_system import (
     Priority, TimeWindow,
     sort_tasks_by_time,
 )
+from ai_agent import analyze_care_context
 
 
 # ---------------------------------------------------------------------------
@@ -465,3 +467,145 @@ def test_build_plan_populates_conflict_warnings_field():
     # conflict_warnings should be a list (empty here — no real conflicts)
     assert isinstance(plan.conflict_warnings, list)
     assert plan.conflict_warnings == []
+
+
+# ===========================================================================
+# AI agent — analyze_care_context() (Gemini mocked, no API key needed)
+# ===========================================================================
+
+def _ai_setup():
+    """Return a standard owner/pet/tasks fixture for AI tests."""
+    owner = Owner(name="Jordan", available_hours=3.0)
+    pet   = Pet(name="Mochi", species="dog")
+    owner.add_pet(pet)
+    pet.add_task(Task(title="Morning walk",  category="walk",    duration_minutes=30,
+                      priority=Priority.HIGH,     preferred_time=TimeWindow.MORNING))
+    pet.add_task(Task(title="Evening walk",  category="walk",    duration_minutes=30,
+                      priority=Priority.MEDIUM,   preferred_time=TimeWindow.EVENING))
+    pet.add_task(Task(title="Feeding",       category="feeding", duration_minutes=10,
+                      priority=Priority.CRITICAL, preferred_time=TimeWindow.ANYTIME))
+    return owner, pet
+
+
+def _mock_gemini(json_text):
+    """Patch get_gemini_client so generate_content returns json_text."""
+    mock_model = MagicMock()
+    mock_model.generate_content.return_value = MagicMock(text=json_text)
+    return patch("ai_agent.get_gemini_client", return_value=mock_model)
+
+
+def test_ai_modify_suggestion_parsed():
+    """A 'modify' action returned by the AI is parsed into the suggestions list."""
+    owner, pet = _ai_setup()
+    payload = (
+        '[{"action": "modify", "target_title": "Morning walk",'
+        ' "task_data": {"duration_minutes": 10, "preferred_time": "EVENING"},'
+        ' "reason": "Too hot."}]'
+    )
+    with _mock_gemini(payload):
+        result = analyze_care_context("It is very hot outside", pet, owner)
+
+    assert "suggestions" in result
+    s = result["suggestions"][0]
+    assert s["action"] == "modify"
+    assert s["target_title"] == "Morning walk"
+    assert s["task_data"]["duration_minutes"] == 10
+
+
+def test_ai_modify_applied_to_task():
+    """Applying a 'modify' suggestion actually updates the task's fields."""
+    owner, pet = _ai_setup()
+    payload = (
+        '[{"action": "modify", "target_title": "Morning walk",'
+        ' "task_data": {"duration_minutes": 10, "preferred_time": "EVENING"},'
+        ' "reason": "Too hot."}]'
+    )
+    with _mock_gemini(payload):
+        result = analyze_care_context("It is very hot outside", pet, owner)
+
+    s = result["suggestions"][0]
+    for t in pet.tasks:
+        if t.title == s["target_title"] and not t.completed:
+            t.duration_minutes = s["task_data"]["duration_minutes"]
+            t.preferred_time   = TimeWindow[s["task_data"]["preferred_time"]]
+
+    modified = next(t for t in pet.tasks if t.title == "Morning walk")
+    assert modified.duration_minutes == 10
+    assert modified.preferred_time   == TimeWindow.EVENING
+
+
+def test_ai_add_suggestion_creates_task():
+    """Applying an 'add' suggestion appends a new Task to the pet."""
+    owner, pet = _ai_setup()
+    before = len(pet.tasks)
+    payload = (
+        '[{"action": "add",'
+        ' "task_data": {"title": "Water bowl refill", "duration_minutes": 5,'
+        '               "priority": "HIGH", "preferred_time": "MORNING"},'
+        ' "reason": "Hot weather increases hydration needs."}]'
+    )
+    with _mock_gemini(payload):
+        result = analyze_care_context("Very hot today", pet, owner)
+
+    s = result["suggestions"][0]
+    td = s["task_data"]
+    pet.add_task(Task(
+        title=td["title"], category="ai_suggested",
+        duration_minutes=td["duration_minutes"],
+        priority=Priority[td["priority"]],
+        preferred_time=TimeWindow[td["preferred_time"]],
+    ))
+
+    assert len(pet.tasks) == before + 1
+    assert any(t.title == "Water bowl refill" for t in pet.tasks)
+
+
+def test_ai_remove_suggestion_deletes_task():
+    """Applying a 'remove' suggestion deletes the named task from the pet."""
+    owner, pet = _ai_setup()
+    payload = (
+        '[{"action": "remove", "target_title": "Evening walk",'
+        ' "reason": "No time today."}]'
+    )
+    with _mock_gemini(payload):
+        result = analyze_care_context("I only have 15 minutes", pet, owner)
+
+    s = result["suggestions"][0]
+    pet.remove_task(s["target_title"])
+
+    assert not any(t.title == "Evening walk" for t in pet.tasks)
+
+
+def test_ai_malformed_json_returns_error():
+    """If the AI returns non-JSON text, analyze_care_context returns an error dict."""
+    owner, pet = _ai_setup()
+    with _mock_gemini("not valid json at all"):
+        result = analyze_care_context("something", pet, owner)
+
+    assert "error" in result
+    assert "malformed JSON" in result["error"]
+
+
+def test_ai_missing_api_key_returns_error():
+    """With no API key configured, analyze_care_context returns an error dict."""
+    owner, pet = _ai_setup()
+    with patch("ai_agent.get_gemini_client", return_value=None):
+        result = analyze_care_context("something", pet, owner)
+
+    assert "error" in result
+    assert "API Key" in result["error"]
+
+
+def test_ai_markdown_fenced_json_stripped():
+    """Responses wrapped in ```json ... ``` fences are stripped and parsed correctly."""
+    owner, pet = _ai_setup()
+    payload = (
+        '```json\n'
+        '[{"action": "remove", "target_title": "Feeding", "reason": "Test"}]\n'
+        '```'
+    )
+    with _mock_gemini(payload):
+        result = analyze_care_context("test", pet, owner)
+
+    assert "suggestions" in result
+    assert result["suggestions"][0]["action"] == "remove"
