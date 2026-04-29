@@ -147,7 +147,7 @@ python -m pytest tests/test_pawpal.py -v
 
 ### What the tests cover
 
-The suite contains **40 tests** across `tests/test_pawpal.py`:
+The suite contains **47 tests** across `tests/test_pawpal.py`:
 
 | Area | What is verified |
 |---|---|
@@ -156,12 +156,13 @@ The suite contains **40 tests** across `tests/test_pawpal.py`:
 | **Conflict detection** | Overlapping slots are flagged with the correct overlap duration; back-to-back tasks are not flagged; out-of-order input is handled; empty plans return zero warnings. |
 | **`is_due()` logic** | Tasks with no `next_due` are always due; future-dated tasks are not due; completed tasks are never due. |
 | **Edge cases** | Pet with zero tasks produces an empty plan; a task longer than the daily budget lands in `skipped_tasks`; `filter_tasks()` correctly combines pet-name and status filters. |
+| **AI agent** | `modify`/`add`/`remove` suggestions parsed and applied correctly; malformed JSON and missing API key return safe error dicts; markdown-fenced responses are stripped before parsing. All tests use a mocked Gemini client — no API key required. |
 
 ### Confidence level
 
 **★★★★★ (5 / 5)**
 
-All 40 tests pass. Every public method is covered through both happy paths and boundary conditions — giving high confidence the system behaves correctly under realistic usage.
+All 47 tests pass. Every public method is covered through both happy paths and boundary conditions — giving high confidence the system behaves correctly under realistic usage.
 
 ---
 
