@@ -196,6 +196,18 @@ Every call to `analyze_care_context` is completely independent — it sends the 
 
 ---
 
+## Reliability and Evaluation
+
+**Summary:** 47 out of 47 unit tests pass. The AI reliability harness ran 2 adversarial test cases — both passed when the API was available. The AI correctly handled constraint violations (time crunch) and safety concerns (extreme heat) in every manual test. Error handling catches malformed JSON and missing API keys gracefully without crashing. The main reliability weakness is the eval harness uses keyword matching to score AI reasons, which occasionally flags a correct suggestion as a FAIL if the wording doesn't contain expected terms like "heat" or "temperature."
+
+The system includes four reliability mechanisms:
+- **Automated unit tests** — 47 tests covering all core logic and the full AI pipeline (mocked), run with `python -m pytest`
+- **AI reliability harness** — `eval_agent.py` feeds adversarial inputs to the AI and scores the output for safety and budget compliance
+- **Error handling** — `analyze_care_context` catches malformed JSON and API failures and returns a clean `{"error": "..."}` dict instead of crashing the UI
+- **Structured output constraint** — the prompt forces the AI to return a typed JSON schema, making unexpected or unsafe outputs easy to detect and reject
+
+---
+
 ## Testing Summary
 
 **What worked well:**
