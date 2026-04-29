@@ -119,20 +119,26 @@ On the AI side: it's a great first draft machine, but a bad decision maker. It w
 
 ---
 
-## 6. Project 4 Extension — AI Feature Reflection
+## 6. Reflection and Ethics
 
-**a. How AI was used to build the new feature**
+**Limitations and biases in the system**
 
-For the Project 4 extension I used AI assistance at three stages. First, designing the JSON contract between `analyze_care_context` and the Streamlit UI — I asked for a structured format that would be easy to validate and apply programmatically, and the action/target_title/task_data/reason schema came out of that conversation. Second, writing the prompt in `ai_agent.py` — I iterated several times on how to give Gemini enough context (pet name, species, time budget, pending task list) without the prompt becoming unwieldy. Third, debugging the Streamlit session state pattern for holding suggestions between button clicks, which required understanding how Streamlit reruns work.
+The biggest limitation is that the AI has no real knowledge of veterinary care — it's pattern matching on language, not reasoning from medical facts. If someone types "my dog ate something weird," it might suggest "monitor symptoms" which sounds reasonable, but it has no way to know whether the situation actually needs an emergency vet visit. It will also reflect whatever biases exist in its training data around what "normal" pet care looks like. A dog owner in a hot climate has very different needs than one in a cold one, and the AI doesn't know which one it's talking to unless you tell it. The scheduler itself has a bias toward filling time aggressively — it will schedule as many tasks as fit, which isn't always what an overwhelmed owner needs.
 
-**b. One helpful and one flawed AI suggestion**
+**Could it be misused?**
 
-*Helpful:* When designing the reliability harness in `eval_agent.py`, AI suggested simulating the effect of suggestions on the task list by walking through remove/modify actions and computing a new total duration — rather than actually mutating the pet object and re-running the scheduler. That kept the evaluator stateless and easy to read.
+The main misuse risk is someone over-trusting the AI's suggestions on health-related context. If a pet is actually sick and needs a vet, the AI might suggest something like "reduce activity and monitor" which could delay real care. I'd add a disclaimer in the UI for any health-sounding context — something like "This is not veterinary advice — if your pet seems seriously unwell, contact a vet." Another risk is prompt injection: a malicious user could theoretically type something in the context box designed to make the AI return harmful JSON (like removing a medication task). Validating the JSON schema before applying it — which the current code does — helps, but a stricter allow-list for field values would make it more robust.
 
-*Flawed:* The initial `app.py` AI section that Gemini generated left the "Analyze Context" button wired to a hardcoded simulated string and the "Apply AI Suggestions" button permanently `disabled=True` — essentially a non-functional placeholder committed as if it were working code. It also left no session state mechanism to carry suggestions across Streamlit reruns, so even if the button had been enabled it would have had nothing to apply. Both had to be rewritten from scratch.
+**What surprised me during reliability testing**
 
-**c. System limitations and future improvements**
+Honestly, the AI was more reliable than I expected on the straightforward cases. Give it "it's 100 degrees outside" and it will pretty consistently suggest shortening walks and adding water checks. What surprised me was how brittle the evaluation was — not the AI, but my own test. The eval harness checks whether the word "heat" or "temperature" appears in the AI's reason string. But sometimes the AI would write something like "dangerous outdoor conditions" or "high ambient temperature risk" and the check would fail even though the suggestion was completely correct. I had built a bad evaluator, not caught a bad AI. That was a useful thing to realize.
 
-The current AI feature has two notable limitations. First, it is stateless — every call to Gemini re-sends the full task list and context with no memory of prior suggestions, so if the owner applies suggestions and then asks a follow-up question, the AI has no awareness of what it already recommended. Second, the reliability harness only runs two test cases and grades on keywords in the AI's reasons; a more robust harness would run a larger battery of prompts and evaluate the *numeric* outcomes (final total minutes, presence/absence of specific tasks) rather than text matching.
+**AI collaboration — one helpful, one flawed**
 
-Future improvements: add a session-level conversation history so the AI can reason across multiple context inputs in one session; expand the eval harness to cover a wider range of edge cases (multiple pets, zero-budget, CRITICAL task conflicts); and consider returning a confidence score alongside each suggestion so the UI can surface low-confidence suggestions differently.
+*Helpful:* The most genuinely useful thing AI did was suggest the JSON action schema — `action`, `target_title`, `task_data`, `reason` — as the contract between the AI agent and the UI. I had been thinking about having the AI return a text description of what to change, and I would've wasted a lot of time trying to parse natural language back into code. The structured schema idea was cleaner and I wouldn't have landed on it as quickly on my own.
+
+*Flawed:* When I first asked for help building the AI Care Intelligence section in the UI, the generated code looked completely finished — spinner, success message, a button. But the button was hardcoded to `disabled=True` and the message was a fake string that never called any real function. It wasn't broken in a way that threw an error. It just silently didn't work. I only caught it by actually reading the code line by line, which took longer than it should have because the surface appearance was so convincing. That taught me more about AI code review than anything else in the project.
+
+**On using my own judgment**
+
+I want to be honest: AI was a useful tool here, but most of the actual thinking was mine. The class structure, the decision to keep tasks on Pet instead of Scheduler, the greedy algorithm choice, the JSON schema validation, the session state pattern for suggestions — those were all decisions I reasoned through myself, sometimes after getting a first draft from AI that I didn't agree with. AI is good at generating options quickly. The judgment calls about which option was right, and why, were mine. I used AI the way I'd use a fast search engine that can write code — helpful for getting something to react to, not a replacement for actually understanding the problem.
